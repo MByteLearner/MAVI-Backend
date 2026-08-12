@@ -46,6 +46,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-mavi}:${POSTGRES_PASSWORD:-mavi_secret}@db:5432/${POSTGRES_DB:-mavi}
       AI_SERVICE_URL: http://ai-service:8000
       UPLOADS_DIR: /app/uploads
+      JWT_SECRET: ${JWT_SECRET:-mavi_super_secret_key_change_in_production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
     ports:
       - "3000:3000"
     volumes:
