@@ -1,0 +1,72 @@
+name: mavi-backend
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: mavi-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mavi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mavi_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-mavi}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - mavi-net
+
+  ai-service:
+    build:
+      context: ./ai-service
+    container_name: mavi-ai-service
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mavi-net
+
+  core-api:
+    build:
+      context: ./core-api
+    container_name: mavi-core-api
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mavi}:${POSTGRES_PASSWORD:-mavi_secret}@db:5432/${POSTGRES_DB:-mavi}
+      AI_SERVICE_URL: http://ai-service:8000
+      UPLOADS_DIR: /app/uploads
+    ports:
+      - "3000:3000"
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      ai-service:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mavi-net
+
+volumes:
+  pgdata:
+  uploads:
+
+networks:
+  mavi-net:
+    driver: bridge

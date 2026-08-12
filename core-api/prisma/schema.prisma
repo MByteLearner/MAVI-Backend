@@ -1,0 +1,56 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String            @id @default(uuid())
+  email        String            @unique
+  passwordHash String            @map("password_hash")
+  name         String?
+  goals        String[]          @default([])
+  allergies    String[]          @default([])
+  streak       Int               @default(0)
+  createdAt    DateTime          @default(now()) @map("created_at")
+  guideline    MedicalGuideline?
+  mealLogs     MealLog[]
+
+  @@map("users")
+}
+
+model MedicalGuideline {
+  id                 String   @id @default(uuid())
+  userId             String   @unique @map("user_id")
+  allowedIngredients String[] @map("allowed_ingredients")
+  restrictions       String[]
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("medical_guidelines")
+}
+
+model Recipe {
+  id           String    @id @default(uuid())
+  name         String
+  ingredients  Json
+  baseCalories Int       @map("base_calories")
+  mealLogs     MealLog[]
+
+  @@map("recipes")
+}
+
+model MealLog {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  recipeId  String   @map("recipe_id")
+  photoUrl  String   @map("photo_url")
+  isValid   Boolean  @map("is_valid")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipe    Recipe   @relation(fields: [recipeId], references: [id])
+
+  @@map("meal_logs")
+}
