@@ -4,7 +4,7 @@ import { config } from './config';
 import { errorHandler } from './middleware/error';
 import { apiRouter } from './routes';
 
-const app = express();
+export const app = express();
 
 app.use(express.json());
 
@@ -19,6 +19,9 @@ app.use('/api', apiRouter);
 
 app.use(errorHandler);
 
-app.listen(config.port, () => {
-  console.log(`MAVI Core API escuchando en el puerto ${config.port}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(config.port, () => {
+    console.log(`MAVI Core API escuchando en el puerto ${config.port}`);
+  });
+}
+

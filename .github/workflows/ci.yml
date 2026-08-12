@@ -1,0 +1,100 @@
+name: MAVI Backend CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test-core-api:
+    name: Core API (Node.js & Prisma)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: mavi
+          POSTGRES_PASSWORD: mavi_secret
+          POSTGRES_DB: mavi
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: ./core-api
+
+    steps:
+      - name: Checkout Código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js (v22)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: core-api/package-lock.json
+
+      - name: Instalar Dependencias
+        run: npm ci
+
+      - name: Aplicar Esquema Prisma a PostgreSQL de CI
+        env:
+          DATABASE_URL: postgresql://mavi:mavi_secret@localhost:5432/mavi
+        run: npx prisma db push
+
+      - name: Ejecutar Pruebas Automatizadas (Jest)
+        env:
+          DATABASE_URL: postgresql://mavi:mavi_secret@localhost:5432/mavi
+          JWT_SECRET: ci_test_secret_key
+        run: npm test
+
+      - name: Verificar Compilación TypeScript
+        run: npm run build
+
+  test-ai-service:
+    name: AI Service (Python & FastAPI)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./ai-service
+
+    steps:
+      - name: Checkout Código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python (3.12)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: ai-service/requirements.txt
+
+      - name: Instalar Dependencias
+        run: pip install -r requirements.txt
+
+      - name: Ejecutar Pruebas Automatizadas (Pytest)
+        env:
+          PYTHONPATH: .
+        run: pytest
+
+  docker-build:
+    name: Validar Construcción de Docker
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Código
+        uses: actions/checkout@v4
+
+      - name: Validar Sintaxis de Docker Compose
+        run: docker compose config
+
+      - name: Construir Imágenes Docker
+        run: docker compose build
