@@ -9,6 +9,9 @@ integración con modelos reales están marcados con TODO-AI.
 """
 
 import json
+import os
+import urllib.request
+import urllib.error
 from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -31,6 +34,15 @@ class DietExtraction(BaseModel):
 
 class PlateValidation(BaseModel):
     is_valid: bool
+
+
+class ChatRequest(BaseModel):
+    message: str
+    user_name: str | None = None
+
+
+class ChatResponse(BaseModel):
+    reply: str
 
 
 # ---------------------------------------------------------------------------
@@ -143,3 +155,71 @@ async def validate_plate(
         file.filename or "", payload, recipe_ingredients
     )
     return PlateValidation(is_valid=is_valid)
+
+
+@app.post("/ai/chat", response_model=ChatResponse)
+async def chat_ai(payload: ChatRequest) -> ChatResponse:
+    """Procesa consultas nutricionales usando Ollama (local) o DeepSeek API (nube)."""
+    ollama_url = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
+    ollama_model = os.getenv("OLLAMA_MODEL", "llama3.2")
+    use_ollama = os.getenv("USE_OLLAMA", "true").lower() in ("true", "1", "yes")
+
+    system_prompt = (
+        "Eres MAVI, una asistente inteligente de nutrición y salud. "
+        "Responde con tono amable, conciso y profesional a las consultas de salud y nutrición."
+    )
+
+    # 1. Intentar Ollama local (si USE_OLLAMA=true o si OLLAMA_BASE_URL está definido)
+    if use_ollama or os.getenv("OLLAMA_BASE_URL"):
+        try:
+            url = f"{ollama_url.rstrip('/')}/api/chat"
+            headers = {"Content-Type": "application/json"}
+            body = json.dumps({
+                "model": ollama_model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": payload.message},
+                ],
+                "stream": False,
+            }).encode("utf-8")
+
+            req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=45) as response:
+                res_data = json.loads(response.read().decode("utf-8"))
+                reply = res_data.get("message", {}).get("content", "")
+                if reply:
+                    return ChatResponse(reply=reply)
+        except Exception as exc:
+            print(f"[Ollama Error]: {exc}")
+
+    # 2. Intentar DeepSeek API Cloud (si DEEPSEEK_API_KEY está configurada)
+    deepseek_api_key = os.getenv("DEEPSEEK_API_KEY")
+    if deepseek_api_key and deepseek_api_key.strip():
+        try:
+            url = "https://api.deepseek.com/chat/completions"
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {deepseek_api_key.strip()}",
+            }
+            body = json.dumps({
+                "model": "deepseek-chat",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": payload.message},
+                ],
+                "stream": False,
+            }).encode("utf-8")
+
+            req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=30) as response:
+                res_data = json.loads(response.read().decode("utf-8"))
+                reply = res_data["choices"][0]["message"]["content"]
+                return ChatResponse(reply=reply)
+        except Exception as exc:
+            print(f"[DeepSeek API Error]: {exc}")
+
+    # 3. Fallback inteligente si no hay servicio configurado
+    name = payload.user_name or "Usuario"
+    return ChatResponse(
+        reply=f"Hola {name}! Recibí tu consulta: '{payload.message}'. Podés usar Ollama localmente (USE_OLLAMA=true) o añadir tu DEEPSEEK_API_KEY."
+    )
