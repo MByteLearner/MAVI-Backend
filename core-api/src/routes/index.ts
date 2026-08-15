@@ -8,6 +8,8 @@ import { asyncHandler } from '../lib/asyncHandler';
 import { authenticateToken } from '../middleware/auth';
 import { dietUpload, plateUpload } from '../middleware/upload';
 
+import { sendChatToAIService } from '../services/ai.service';
+
 export const apiRouter = Router();
 
 // Rutas públicas de autenticación
@@ -32,6 +34,20 @@ apiRouter.post(
   authenticateToken,
   plateUpload.single('file'),
   asyncHandler(validateMeal),
+);
+apiRouter.post(
+  '/ai/chat',
+  authenticateToken,
+  asyncHandler(async (req, res) => {
+    const { message } = req.body;
+    if (!message) {
+      res.status(400).json({ error: 'El mensaje es requerido' });
+      return;
+    }
+    const userName = req.user ? req.user.email.split('@')[0] : 'Usuario';
+    const result = await sendChatToAIService(message, userName);
+    res.json(result);
+  }),
 );
 
 

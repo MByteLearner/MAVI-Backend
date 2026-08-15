@@ -45,3 +45,13 @@ export async function validatePlate(
   );
   return data;
 }
+
+/** Envía un mensaje de chat al microservicio de IA para procesarlo con DeepSeek / LLM. */
+export async function sendChatToAIService(message: string, userName?: string): Promise<{ reply: string }> {
+  const { data } = await axios.post<{ reply: string }>(
+    `${config.aiServiceUrl}/ai/chat`,
+    { message, user_name: userName },
+    { timeout: 30_000 },
+  );
+  return data;
+}
