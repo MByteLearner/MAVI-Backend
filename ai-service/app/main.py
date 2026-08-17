@@ -158,6 +158,7 @@ async def validate_plate(
 
 
 @app.post("/ai/chat", response_model=ChatResponse)
+@app.post("/ia/chat", response_model=ChatResponse)
 async def chat_ai(payload: ChatRequest) -> ChatResponse:
     """Procesa consultas nutricionales usando Ollama (local) o DeepSeek API (nube)."""
     ollama_url = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
