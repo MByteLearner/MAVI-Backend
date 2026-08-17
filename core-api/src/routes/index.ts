@@ -5,7 +5,7 @@ import { validateMeal } from '../controllers/meals.controller';
 import { getSuggestedRecipes } from '../controllers/recipes.controller';
 import { getProfile, updateProfile } from '../controllers/users.controller';
 import { asyncHandler } from '../lib/asyncHandler';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken, optionalAuthenticateToken } from '../middleware/auth';
 import { dietUpload, plateUpload } from '../middleware/upload';
 
 import { sendChatToAIService } from '../services/ai.service';
@@ -35,19 +35,18 @@ apiRouter.post(
   plateUpload.single('file'),
   asyncHandler(validateMeal),
 );
-apiRouter.post(
-  '/ai/chat',
-  authenticateToken,
-  asyncHandler(async (req, res) => {
-    const { message } = req.body;
-    if (!message) {
-      res.status(400).json({ error: 'El mensaje es requerido' });
-      return;
-    }
-    const userName = req.user ? req.user.email.split('@')[0] : 'Usuario';
-    const result = await sendChatToAIService(message, userName);
-    res.json(result);
-  }),
-);
+const handleChat = asyncHandler(async (req, res) => {
+  const { message } = req.body;
+  if (!message) {
+    res.status(400).json({ error: 'El mensaje es requerido' });
+    return;
+  }
+  const userName = req.user ? req.user.email.split('@')[0] : 'Usuario';
+  const result = await sendChatToAIService(message, userName);
+  res.json(result);
+});
+
+apiRouter.post('/ai/chat', optionalAuthenticateToken, handleChat);
+apiRouter.post('/ia/chat', optionalAuthenticateToken, handleChat);
 
 

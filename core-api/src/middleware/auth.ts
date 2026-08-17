@@ -24,3 +24,22 @@ export function authenticateToken(
     res.status(401).json({ error: 'Token inválido o expirado.' });
   }
 }
+
+export function optionalAuthenticateToken(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+): void {
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, config.jwtSecret) as AuthUserPayload;
+      req.user = { id: decoded.id, email: decoded.email };
+    } catch (_error) {
+      // Token omitido si expiró en rutas opcionales
+    }
+  }
+  next();
+}
